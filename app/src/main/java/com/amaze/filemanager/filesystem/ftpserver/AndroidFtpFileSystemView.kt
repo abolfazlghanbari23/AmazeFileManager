@@ -31,7 +31,6 @@ import org.apache.ftpserver.ftplet.FileSystemView
 import org.apache.ftpserver.ftplet.FtpFile
 import java.io.File
 import java.net.URI
-import java.net.URLDecoder
 
 @RequiresApi(KITKAT)
 class AndroidFtpFileSystemView(private var context: Context, root: String) : FileSystemView {
