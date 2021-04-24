@@ -1629,7 +1629,7 @@ public class MainFragment extends Fragment implements BottomBarButtonPath {
   // adds search results based on result boolean. If false, the adapter is initialised with initial
   // values, if true, new values are added to the adapter.
   public void addSearchResult(HybridFileParcelable a, String query) {
-    results = false;//To avoid adding duplicate items and prevent crash when search hidden item
+    results = false;
     if (listView != null) {
 
       // initially clearing the array for new result set
