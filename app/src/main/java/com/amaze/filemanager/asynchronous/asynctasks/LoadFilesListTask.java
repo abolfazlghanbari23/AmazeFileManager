@@ -343,7 +343,7 @@ public class LoadFilesListTask
         HybridFileParcelable strings = RootHelper.generateBaseFile(new File(path), showHiddenFiles);
         if (strings != null) {
           LayoutElementParcelable parcelable = createListParcelables(strings);
-          if (parcelable != null) retval.add(parcelable);
+          if (parcelable != null && new File(path).exists()) retval.add(parcelable);
         }
       } while (cursor.moveToNext());
     }

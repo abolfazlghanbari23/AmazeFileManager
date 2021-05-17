@@ -669,7 +669,7 @@ public class FileUtils {
 
     if (f.getName().toLowerCase().endsWith(".apk")) {
       GeneralDialogCreation.showPackageDialog(f, m);
-    } else if (CompressedHelper.isFileExtractable(f.getPath())) {
+    } else if (defaultHandler && CompressedHelper.isFileExtractable(f.getPath())) {
       GeneralDialogCreation.showArchiveDialog(f, m);
     } else if (defaultHandler && f.getName().toLowerCase().endsWith(".db")) {
       Intent intent = new Intent(m, DatabaseViewerActivity.class);
