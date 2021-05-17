@@ -517,367 +517,371 @@ public class RecyclerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
 
   @Override
   public void onBindViewHolder(final RecyclerView.ViewHolder vholder, int p) {
-    if (vholder instanceof ItemViewHolder) {
-      final ItemViewHolder holder = (ItemViewHolder) vholder;
+    try {//to prevent crash when search contains hidden files
+      if (vholder instanceof ItemViewHolder) {
+        final ItemViewHolder holder = (ItemViewHolder) vholder;
 
-      boolean enableMarquee =
-          sharedPrefs.getBoolean(PreferencesConstants.PREFERENCE_ENABLE_MARQUEE_FILENAME, true);
-      holder.txtTitle.setEllipsize(
-          enableMarquee ? TextUtils.TruncateAt.MARQUEE : TextUtils.TruncateAt.MIDDLE);
+        boolean enableMarquee =
+                sharedPrefs.getBoolean(PreferencesConstants.PREFERENCE_ENABLE_MARQUEE_FILENAME, true);
+        holder.txtTitle.setEllipsize(
+                enableMarquee ? TextUtils.TruncateAt.MARQUEE : TextUtils.TruncateAt.MIDDLE);
 
-      final boolean isBackButton = itemsDigested.get(p).specialType == TYPE_BACK;
-      if (isBackButton) {
-        holder.about.setVisibility(View.GONE);
-      }
-      if (mainFrag.IS_LIST) {
-        if (p == getItemCount() - 1) {
-          holder.rl.setMinimumHeight((int) minRowHeight);
-          if (itemsDigested.size() == (getBoolean(PREFERENCE_SHOW_GOBACK_BUTTON) ? 1 : 0))
-            holder.txtTitle.setText(R.string.no_files);
-          else {
-            holder.txtTitle.setText("");
-          }
-          return;
-        }
-      }
-      if (!this.stoppedAnimation && !itemsDigested.get(p).getAnimating()) {
-        animate(holder);
-        itemsDigested.get(p).setAnimate(true);
-      }
-      final LayoutElementParcelable rowItem = itemsDigested.get(p).elem;
-
-      if (mainFrag.IS_LIST) {
-        // clear previously cached icon
-        GlideApp.with(mainFrag).clear(holder.genericIcon);
-        GlideApp.with(mainFrag).clear(holder.pictureIcon);
-        GlideApp.with(mainFrag).clear(holder.apkIcon);
-        GlideApp.with(mainFrag).clear(holder.rl);
-
-        holder.rl.setOnClickListener(
-            v -> {
-              mainFrag.onListItemClicked(
-                  isBackButton, vholder.getAdapterPosition(), rowItem, holder.checkImageView);
-            });
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-          holder.checkImageView.setBackground(
-              new CircleGradientDrawable(
-                  accentColor,
-                  utilsProvider.getAppTheme(),
-                  mainFrag.getResources().getDisplayMetrics()));
-        } else {
-          holder.checkImageView.setBackgroundDrawable(
-              new CircleGradientDrawable(
-                  accentColor,
-                  utilsProvider.getAppTheme(),
-                  mainFrag.getResources().getDisplayMetrics()));
-        }
-
-        holder.rl.setOnLongClickListener(
-            p1 -> {
-              // check if the item on which action is performed is not the first {goback} item
-              if (!isBackButton) {
-                toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
-              }
-
-              return true;
-            });
-        holder.txtTitle.setText(rowItem.title);
-        holder.genericText.setText("");
-
-        if (holder.about != null) {
-          if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT))
-            holder.about.setColorFilter(grey_color);
-          showPopup(holder.about, rowItem);
-        }
-        holder.genericIcon.setOnClickListener(
-            v -> {
-              int id = v.getId();
-              if (id == R.id.generic_icon || id == R.id.picture_icon || id == R.id.apk_icon) {
-                // TODO: transform icon on press to the properties dialog with animation
-                if (!isBackButton) {
-                  toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
-                } else mainFrag.goBack();
-              }
-            });
-
-        holder.pictureIcon.setOnClickListener(
-            view -> {
-              if (!isBackButton) {
-                toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
-              } else mainFrag.goBack();
-            });
-
-        holder.apkIcon.setOnClickListener(
-            view -> {
-              if (!isBackButton) {
-                toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
-              } else mainFrag.goBack();
-            });
-
-        // resetting icons visibility
-        holder.genericIcon.setVisibility(View.VISIBLE);
-        holder.pictureIcon.setVisibility(View.INVISIBLE);
-        holder.apkIcon.setVisibility(View.INVISIBLE);
-        holder.checkImageView.setVisibility(View.INVISIBLE);
-
-        // setting icons for various cases
-        // apkIcon holder refers to square/non-circular drawable
-        // pictureIcon is circular drawable
-        switch (rowItem.filetype) {
-          case Icons.IMAGE:
-          case Icons.VIDEO:
-            if (getBoolean(PREFERENCE_SHOW_THUMB)) {
-              if (getBoolean(PREFERENCE_USE_CIRCULAR_IMAGES)) {
-                showThumbnailWithBackground(
-                    holder, rowItem.iconData, holder.pictureIcon, rowItem.iconData::setImageBroken);
-              } else {
-                showThumbnailWithBackground(
-                    holder, rowItem.iconData, holder.apkIcon, rowItem.iconData::setImageBroken);
-              }
-            } else {
-              holder.genericIcon.setImageResource(
-                  rowItem.filetype == Icons.IMAGE
-                      ? R.drawable.ic_doc_image
-                      : R.drawable.ic_doc_video_am);
-            }
-            break;
-          case Icons.APK:
-            if (getBoolean(PREFERENCE_SHOW_THUMB)) {
-              showThumbnailWithBackground(
-                  holder, rowItem.iconData, holder.apkIcon, rowItem.iconData::setImageBroken);
-            } else {
-              holder.genericIcon.setImageResource(R.drawable.ic_doc_apk_white);
-            }
-            break;
-          case Icons.NOT_KNOWN:
-            holder.genericIcon.setVisibility(View.VISIBLE);
-            // if the file type is any unknown variable
-            String ext = !rowItem.isDirectory ? MimeTypes.getExtension(rowItem.title) : null;
-            if (ext != null && ext.trim().length() != 0) {
-              holder.genericText.setText(ext);
-              holder.genericIcon.setImageDrawable(null);
-              holder.genericIcon.setVisibility(View.INVISIBLE);
-            } else {
-              // we could not find the extension, set a generic file type icon probably a directory
-              modelProvider.getPreloadRequestBuilder(rowItem.iconData).into(holder.genericIcon);
-            }
-            break;
-          case Icons.ENCRYPTED:
-          default:
-            holder.genericIcon.setVisibility(View.VISIBLE);
-            modelProvider.getPreloadRequestBuilder(rowItem.iconData).into(holder.genericIcon);
-            break;
-        }
-
-        if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT)) {
-          holder.rl.setBackgroundResource(R.drawable.safr_ripple_white);
-        } else {
-          holder.rl.setBackgroundResource(R.drawable.safr_ripple_black);
-        }
-        holder.rl.setSelected(false);
-        if (itemsDigested.get(p).getChecked() == ListItem.CHECKED) {
-
-          if (holder.checkImageView.getVisibility() == View.INVISIBLE)
-            holder.checkImageView.setVisibility(View.VISIBLE);
-          // making sure the generic icon background color filter doesn't get changed
-          // to grey on picture/video/apk/generic text icons when checked
-          // so that user can still look at the thumbs even after selection
-          if ((rowItem.filetype != Icons.IMAGE
-                  && rowItem.filetype != Icons.APK
-                  && rowItem.filetype != Icons.VIDEO)
-              || !getBoolean(PREFERENCE_SHOW_THUMB)) {
-            holder.apkIcon.setVisibility(View.GONE);
-            holder.pictureIcon.setVisibility(View.GONE);
-            holder.genericIcon.setVisibility(View.VISIBLE);
-            GradientDrawable gradientDrawable =
-                (GradientDrawable) holder.genericIcon.getBackground();
-            gradientDrawable.setColor(goBackColor);
-          }
-          holder.rl.setSelected(true);
-          // holder.genericText.setText("");
-        } else {
-          holder.checkImageView.setVisibility(View.INVISIBLE);
-          if (!((rowItem.filetype == Icons.APK
-                  || rowItem.filetype == Icons.IMAGE
-                  || rowItem.filetype == Icons.VIDEO)
-              && getBoolean(PREFERENCE_SHOW_THUMB))) {
-            holder.genericIcon.setVisibility(View.VISIBLE);
-            GradientDrawable gradientDrawable =
-                (GradientDrawable) holder.genericIcon.getBackground();
-
-            if (getBoolean(PREFERENCE_COLORIZE_ICONS)) {
-              if (rowItem.isDirectory) {
-                gradientDrawable.setColor(iconSkinColor);
-              } else {
-                ColorUtils.colorizeIcons(
-                    context, rowItem.filetype, gradientDrawable, iconSkinColor);
-              }
-            } else gradientDrawable.setColor(iconSkinColor);
-
-            if (isBackButton) {
-              gradientDrawable.setColor(goBackColor);
-            }
-          }
-        }
-        if (getBoolean(PREFERENCE_SHOW_PERMISSIONS)) holder.perm.setText(rowItem.permissions);
-        if (getBoolean(PREFERENCE_SHOW_LAST_MODIFIED)) {
-          holder.date.setText(rowItem.dateModification);
-        } else {
-          holder.date.setVisibility(View.GONE);
-        }
+        final boolean isBackButton = itemsDigested.get(p).specialType == TYPE_BACK;
         if (isBackButton) {
-          holder.date.setText(rowItem.size);
-          holder.txtDesc.setText("");
-        } else if (getBoolean(PREFERENCE_SHOW_FILE_SIZE)) {
-          holder.txtDesc.setText(rowItem.size);
+          holder.about.setVisibility(View.GONE);
         }
-      } else {
-        // view is a grid view
-        // clear previously cached icon
-        GlideApp.with(mainFrag).clear(holder.genericIcon);
-        GlideApp.with(mainFrag).clear(holder.iconLayout);
-        GlideApp.with(mainFrag).clear(holder.imageView1);
-        GlideApp.with(mainFrag).clear(holder.rl);
-
-        holder.checkImageViewGrid.setColorFilter(accentColor);
-        holder.rl.setOnClickListener(
-            v -> {
-              mainFrag.onListItemClicked(
-                  isBackButton, vholder.getAdapterPosition(), rowItem, holder.checkImageViewGrid);
-            });
-
-        holder.rl.setOnLongClickListener(
-            p1 -> {
-              if (!isBackButton) {
-                toggleChecked(vholder.getAdapterPosition(), holder.checkImageViewGrid);
-              }
-              return true;
-            });
-        holder.txtTitle.setText(rowItem.title);
-        holder.imageView1.setVisibility(View.INVISIBLE);
-        holder.genericIcon.setVisibility(View.VISIBLE);
-        holder.checkImageViewGrid.setVisibility(View.INVISIBLE);
-
-        ((RoundedImageView) holder.genericIcon).setRelativeSize(1.25f, 1.25f);
-
-        if (rowItem.filetype == Icons.IMAGE || rowItem.filetype == Icons.VIDEO) {
-          if (getBoolean(PREFERENCE_SHOW_THUMB)) {
-            holder.imageView1.setVisibility(View.VISIBLE);
-            holder.imageView1.setImageDrawable(null);
-            if (utilsProvider.getAppTheme().equals(AppTheme.DARK)
-                || utilsProvider.getAppTheme().equals(AppTheme.BLACK))
-              holder.imageView1.setBackgroundColor(Color.BLACK);
-            showRoundedThumbnail(
-                holder, rowItem.iconData, holder.imageView1, rowItem.iconData::setImageBroken);
-          } else {
-            if (rowItem.filetype == Icons.IMAGE)
-              holder.genericIcon.setImageResource(R.drawable.ic_doc_image);
-            else holder.genericIcon.setImageResource(R.drawable.ic_doc_video_am);
-          }
-        } else if (rowItem.filetype == Icons.APK) {
-          if (getBoolean(PREFERENCE_SHOW_THUMB))
-            showRoundedThumbnail(
-                holder, rowItem.iconData, holder.genericIcon, rowItem.iconData::setImageBroken);
-          else {
-            holder.genericIcon.setImageResource(R.drawable.ic_doc_apk_white);
-          }
-        } else {
-          GlideApp.with(mainFrag).load(rowItem.iconData.image).into(holder.genericIcon);
-        }
-
-        if (holder.genericIcon.getVisibility() == View.VISIBLE) {
-          View iconBackground =
-              getBoolean(PREFERENCE_USE_CIRCULAR_IMAGES) ? holder.genericIcon : holder.iconLayout;
-          if (rowItem.isDirectory) {
-            iconBackground.setBackgroundColor(iconSkinColor);
-          } else {
-            switch (rowItem.filetype) {
-              case Icons.VIDEO:
-                if (!getBoolean(PREFERENCE_SHOW_THUMB))
-                  iconBackground.setBackgroundColor(videoColor);
-                break;
-              case Icons.AUDIO:
-                iconBackground.setBackgroundColor(audioColor);
-                break;
-              case Icons.PDF:
-                iconBackground.setBackgroundColor(pdfColor);
-                break;
-              case Icons.CODE:
-                iconBackground.setBackgroundColor(codeColor);
-                break;
-              case Icons.TEXT:
-                iconBackground.setBackgroundColor(textColor);
-                break;
-              case Icons.COMPRESSED:
-                iconBackground.setBackgroundColor(archiveColor);
-                break;
-              case Icons.NOT_KNOWN:
-                iconBackground.setBackgroundColor(genericColor);
-                break;
-              case Icons.APK:
-                if (!getBoolean(PREFERENCE_SHOW_THUMB)) iconBackground.setBackgroundColor(apkColor);
-                break;
-              case Icons.IMAGE:
-                if (!getBoolean(PREFERENCE_SHOW_THUMB))
-                  iconBackground.setBackgroundColor(videoColor);
-                break;
-              default:
-                iconBackground.setBackgroundColor(iconSkinColor);
-                break;
+        if (mainFrag.IS_LIST) {
+          if (p == getItemCount() - 1) {
+            holder.rl.setMinimumHeight((int) minRowHeight);
+            if (itemsDigested.size() == (getBoolean(PREFERENCE_SHOW_GOBACK_BUTTON) ? 1 : 0))
+              holder.txtTitle.setText(R.string.no_files);
+            else {
+              holder.txtTitle.setText("");
             }
-          }
-
-          if (isBackButton) {
-            iconBackground.setBackgroundColor(goBackColor);
+            return;
           }
         }
+        if (!this.stoppedAnimation && !itemsDigested.get(p).getAnimating()) {
+          animate(holder);
+          itemsDigested.get(p).setAnimate(true);
+        }
+        final LayoutElementParcelable rowItem = itemsDigested.get(p).elem;
 
-        if (itemsDigested.get(p).getChecked() == ListItem.CHECKED) {
-          if (holder.genericIcon.getVisibility() == View.VISIBLE) {
+        if (mainFrag.IS_LIST) {
+          // clear previously cached icon
+          GlideApp.with(mainFrag).clear(holder.genericIcon);
+          GlideApp.with(mainFrag).clear(holder.pictureIcon);
+          GlideApp.with(mainFrag).clear(holder.apkIcon);
+          GlideApp.with(mainFrag).clear(holder.rl);
 
+          holder.rl.setOnClickListener(
+                  v -> {
+                    mainFrag.onListItemClicked(
+                            isBackButton, vholder.getAdapterPosition(), rowItem, holder.checkImageView);
+                  });
+
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            holder.checkImageView.setBackground(
+                    new CircleGradientDrawable(
+                            accentColor,
+                            utilsProvider.getAppTheme(),
+                            mainFrag.getResources().getDisplayMetrics()));
+          } else {
+            holder.checkImageView.setBackgroundDrawable(
+                    new CircleGradientDrawable(
+                            accentColor,
+                            utilsProvider.getAppTheme(),
+                            mainFrag.getResources().getDisplayMetrics()));
+          }
+
+          holder.rl.setOnLongClickListener(
+                  p1 -> {
+                    // check if the item on which action is performed is not the first {goback} item
+                    if (!isBackButton) {
+                      toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
+                    }
+
+                    return true;
+                  });
+          holder.txtTitle.setText(rowItem.title);
+          holder.genericText.setText("");
+
+          if (holder.about != null) {
+            if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT))
+              holder.about.setColorFilter(grey_color);
+            showPopup(holder.about, rowItem);
+          }
+          holder.genericIcon.setOnClickListener(
+                  v -> {
+                    int id = v.getId();
+                    if (id == R.id.generic_icon || id == R.id.picture_icon || id == R.id.apk_icon) {
+                      // TODO: transform icon on press to the properties dialog with animation
+                      if (!isBackButton) {
+                        toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
+                      } else mainFrag.goBack();
+                    }
+                  });
+
+          holder.pictureIcon.setOnClickListener(
+                  view -> {
+                    if (!isBackButton) {
+                      toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
+                    } else mainFrag.goBack();
+                  });
+
+          holder.apkIcon.setOnClickListener(
+                  view -> {
+                    if (!isBackButton) {
+                      toggleChecked(vholder.getAdapterPosition(), holder.checkImageView);
+                    } else mainFrag.goBack();
+                  });
+
+          // resetting icons visibility
+          holder.genericIcon.setVisibility(View.VISIBLE);
+          holder.pictureIcon.setVisibility(View.INVISIBLE);
+          holder.apkIcon.setVisibility(View.INVISIBLE);
+          holder.checkImageView.setVisibility(View.INVISIBLE);
+
+          // setting icons for various cases
+          // apkIcon holder refers to square/non-circular drawable
+          // pictureIcon is circular drawable
+          switch (rowItem.filetype) {
+            case Icons.IMAGE:
+            case Icons.VIDEO:
+              if (getBoolean(PREFERENCE_SHOW_THUMB)) {
+                if (getBoolean(PREFERENCE_USE_CIRCULAR_IMAGES)) {
+                  showThumbnailWithBackground(
+                          holder, rowItem.iconData, holder.pictureIcon, rowItem.iconData::setImageBroken);
+                } else {
+                  showThumbnailWithBackground(
+                          holder, rowItem.iconData, holder.apkIcon, rowItem.iconData::setImageBroken);
+                }
+              } else {
+                holder.genericIcon.setImageResource(
+                        rowItem.filetype == Icons.IMAGE
+                                ? R.drawable.ic_doc_image
+                                : R.drawable.ic_doc_video_am);
+              }
+              break;
+            case Icons.APK:
+              if (getBoolean(PREFERENCE_SHOW_THUMB)) {
+                showThumbnailWithBackground(
+                        holder, rowItem.iconData, holder.apkIcon, rowItem.iconData::setImageBroken);
+              } else {
+                holder.genericIcon.setImageResource(R.drawable.ic_doc_apk_white);
+              }
+              break;
+            case Icons.NOT_KNOWN:
+              holder.genericIcon.setVisibility(View.VISIBLE);
+              // if the file type is any unknown variable
+              String ext = !rowItem.isDirectory ? MimeTypes.getExtension(rowItem.title) : null;
+              if (ext != null && ext.trim().length() != 0) {
+                holder.genericText.setText(ext);
+                holder.genericIcon.setImageDrawable(null);
+                holder.genericIcon.setVisibility(View.INVISIBLE);
+              } else {
+                // we could not find the extension, set a generic file type icon probably a directory
+                modelProvider.getPreloadRequestBuilder(rowItem.iconData).into(holder.genericIcon);
+              }
+              break;
+            case Icons.ENCRYPTED:
+            default:
+              holder.genericIcon.setVisibility(View.VISIBLE);
+              modelProvider.getPreloadRequestBuilder(rowItem.iconData).into(holder.genericIcon);
+              break;
+          }
+
+          if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT)) {
+            holder.rl.setBackgroundResource(R.drawable.safr_ripple_white);
+          } else {
+            holder.rl.setBackgroundResource(R.drawable.safr_ripple_black);
+          }
+          holder.rl.setSelected(false);
+          if (itemsDigested.get(p).getChecked() == ListItem.CHECKED) {
+
+            if (holder.checkImageView.getVisibility() == View.INVISIBLE)
+              holder.checkImageView.setVisibility(View.VISIBLE);
+            // making sure the generic icon background color filter doesn't get changed
+            // to grey on picture/video/apk/generic text icons when checked
+            // so that user can still look at the thumbs even after selection
             if ((rowItem.filetype != Icons.IMAGE
                     && rowItem.filetype != Icons.APK
                     && rowItem.filetype != Icons.VIDEO)
-                || !getBoolean(PREFERENCE_SHOW_THUMB)) {
-              View iconBackground =
-                  getBoolean(PREFERENCE_USE_CIRCULAR_IMAGES)
-                      ? holder.genericIcon
-                      : holder.iconLayout;
+                    || !getBoolean(PREFERENCE_SHOW_THUMB)) {
+              holder.apkIcon.setVisibility(View.GONE);
+              holder.pictureIcon.setVisibility(View.GONE);
+              holder.genericIcon.setVisibility(View.VISIBLE);
+              GradientDrawable gradientDrawable =
+                      (GradientDrawable) holder.genericIcon.getBackground();
+              gradientDrawable.setColor(goBackColor);
+            }
+            holder.rl.setSelected(true);
+            // holder.genericText.setText("");
+          } else {
+            holder.checkImageView.setVisibility(View.INVISIBLE);
+            if (!((rowItem.filetype == Icons.APK
+                    || rowItem.filetype == Icons.IMAGE
+                    || rowItem.filetype == Icons.VIDEO)
+                    && getBoolean(PREFERENCE_SHOW_THUMB))) {
+              holder.genericIcon.setVisibility(View.VISIBLE);
+              GradientDrawable gradientDrawable =
+                      (GradientDrawable) holder.genericIcon.getBackground();
+
+              if (getBoolean(PREFERENCE_COLORIZE_ICONS)) {
+                if (rowItem.isDirectory) {
+                  gradientDrawable.setColor(iconSkinColor);
+                } else {
+                  ColorUtils.colorizeIcons(
+                          context, rowItem.filetype, gradientDrawable, iconSkinColor);
+                }
+              } else gradientDrawable.setColor(iconSkinColor);
+
+              if (isBackButton) {
+                gradientDrawable.setColor(goBackColor);
+              }
+            }
+          }
+          if (getBoolean(PREFERENCE_SHOW_PERMISSIONS)) holder.perm.setText(rowItem.permissions);
+          if (getBoolean(PREFERENCE_SHOW_LAST_MODIFIED)) {
+            holder.date.setText(rowItem.dateModification);
+          } else {
+            holder.date.setVisibility(View.GONE);
+          }
+          if (isBackButton) {
+            holder.date.setText(rowItem.size);
+            holder.txtDesc.setText("");
+          } else if (getBoolean(PREFERENCE_SHOW_FILE_SIZE)) {
+            holder.txtDesc.setText(rowItem.size);
+          }
+        } else {
+          // view is a grid view
+          // clear previously cached icon
+          GlideApp.with(mainFrag).clear(holder.genericIcon);
+          GlideApp.with(mainFrag).clear(holder.iconLayout);
+          GlideApp.with(mainFrag).clear(holder.imageView1);
+          GlideApp.with(mainFrag).clear(holder.rl);
+
+          holder.checkImageViewGrid.setColorFilter(accentColor);
+          holder.rl.setOnClickListener(
+                  v -> {
+                    mainFrag.onListItemClicked(
+                            isBackButton, vholder.getAdapterPosition(), rowItem, holder.checkImageViewGrid);
+                  });
+
+          holder.rl.setOnLongClickListener(
+                  p1 -> {
+                    if (!isBackButton) {
+                      toggleChecked(vholder.getAdapterPosition(), holder.checkImageViewGrid);
+                    }
+                    return true;
+                  });
+          holder.txtTitle.setText(rowItem.title);
+          holder.imageView1.setVisibility(View.INVISIBLE);
+          holder.genericIcon.setVisibility(View.VISIBLE);
+          holder.checkImageViewGrid.setVisibility(View.INVISIBLE);
+
+          ((RoundedImageView) holder.genericIcon).setRelativeSize(1.25f, 1.25f);
+
+          if (rowItem.filetype == Icons.IMAGE || rowItem.filetype == Icons.VIDEO) {
+            if (getBoolean(PREFERENCE_SHOW_THUMB)) {
+              holder.imageView1.setVisibility(View.VISIBLE);
+              holder.imageView1.setImageDrawable(null);
+              if (utilsProvider.getAppTheme().equals(AppTheme.DARK)
+                      || utilsProvider.getAppTheme().equals(AppTheme.BLACK))
+                holder.imageView1.setBackgroundColor(Color.BLACK);
+              showRoundedThumbnail(
+                      holder, rowItem.iconData, holder.imageView1, rowItem.iconData::setImageBroken);
+            } else {
+              if (rowItem.filetype == Icons.IMAGE)
+                holder.genericIcon.setImageResource(R.drawable.ic_doc_image);
+              else holder.genericIcon.setImageResource(R.drawable.ic_doc_video_am);
+            }
+          } else if (rowItem.filetype == Icons.APK) {
+            if (getBoolean(PREFERENCE_SHOW_THUMB))
+              showRoundedThumbnail(
+                      holder, rowItem.iconData, holder.genericIcon, rowItem.iconData::setImageBroken);
+            else {
+              holder.genericIcon.setImageResource(R.drawable.ic_doc_apk_white);
+            }
+          } else {
+            GlideApp.with(mainFrag).load(rowItem.iconData.image).into(holder.genericIcon);
+          }
+
+          if (holder.genericIcon.getVisibility() == View.VISIBLE) {
+            View iconBackground =
+                    getBoolean(PREFERENCE_USE_CIRCULAR_IMAGES) ? holder.genericIcon : holder.iconLayout;
+            if (rowItem.isDirectory) {
+              iconBackground.setBackgroundColor(iconSkinColor);
+            } else {
+              switch (rowItem.filetype) {
+                case Icons.VIDEO:
+                  if (!getBoolean(PREFERENCE_SHOW_THUMB))
+                    iconBackground.setBackgroundColor(videoColor);
+                  break;
+                case Icons.AUDIO:
+                  iconBackground.setBackgroundColor(audioColor);
+                  break;
+                case Icons.PDF:
+                  iconBackground.setBackgroundColor(pdfColor);
+                  break;
+                case Icons.CODE:
+                  iconBackground.setBackgroundColor(codeColor);
+                  break;
+                case Icons.TEXT:
+                  iconBackground.setBackgroundColor(textColor);
+                  break;
+                case Icons.COMPRESSED:
+                  iconBackground.setBackgroundColor(archiveColor);
+                  break;
+                case Icons.NOT_KNOWN:
+                  iconBackground.setBackgroundColor(genericColor);
+                  break;
+                case Icons.APK:
+                  if (!getBoolean(PREFERENCE_SHOW_THUMB)) iconBackground.setBackgroundColor(apkColor);
+                  break;
+                case Icons.IMAGE:
+                  if (!getBoolean(PREFERENCE_SHOW_THUMB))
+                    iconBackground.setBackgroundColor(videoColor);
+                  break;
+                default:
+                  iconBackground.setBackgroundColor(iconSkinColor);
+                  break;
+              }
+            }
+
+            if (isBackButton) {
               iconBackground.setBackgroundColor(goBackColor);
             }
           }
 
-          holder.checkImageViewGrid.setVisibility(View.VISIBLE);
-          holder.rl.setBackgroundColor(Utils.getColor(context, R.color.item_background));
-        } else {
-          holder.checkImageViewGrid.setVisibility(View.INVISIBLE);
-          if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT))
-            holder.rl.setBackgroundResource(R.drawable.item_doc_grid);
-          else {
-            holder.rl.setBackgroundResource(R.drawable.ic_grid_card_background_dark);
-            holder
-                .rl
-                .findViewById(R.id.icon_frame_grid)
-                .setBackgroundColor(Utils.getColor(context, R.color.icon_background_dark));
+          if (itemsDigested.get(p).getChecked() == ListItem.CHECKED) {
+            if (holder.genericIcon.getVisibility() == View.VISIBLE) {
+
+              if ((rowItem.filetype != Icons.IMAGE
+                      && rowItem.filetype != Icons.APK
+                      && rowItem.filetype != Icons.VIDEO)
+                      || !getBoolean(PREFERENCE_SHOW_THUMB)) {
+                View iconBackground =
+                        getBoolean(PREFERENCE_USE_CIRCULAR_IMAGES)
+                                ? holder.genericIcon
+                                : holder.iconLayout;
+                iconBackground.setBackgroundColor(goBackColor);
+              }
+            }
+
+            holder.checkImageViewGrid.setVisibility(View.VISIBLE);
+            holder.rl.setBackgroundColor(Utils.getColor(context, R.color.item_background));
+          } else {
+            holder.checkImageViewGrid.setVisibility(View.INVISIBLE);
+            if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT))
+              holder.rl.setBackgroundResource(R.drawable.item_doc_grid);
+            else {
+              holder.rl.setBackgroundResource(R.drawable.ic_grid_card_background_dark);
+              holder
+                      .rl
+                      .findViewById(R.id.icon_frame_grid)
+                      .setBackgroundColor(Utils.getColor(context, R.color.icon_background_dark));
+            }
           }
-        }
 
-        if (holder.about != null) {
-          if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT))
-            holder.about.setColorFilter(grey_color);
-          showPopup(holder.about, rowItem);
-        }
+          if (holder.about != null) {
+            if (utilsProvider.getAppTheme().equals(AppTheme.LIGHT))
+              holder.about.setColorFilter(grey_color);
+            showPopup(holder.about, rowItem);
+          }
 
-        if (getBoolean(PREFERENCE_SHOW_LAST_MODIFIED)) {
-          holder.date.setText(rowItem.dateModification);
+          if (getBoolean(PREFERENCE_SHOW_LAST_MODIFIED)) {
+            holder.date.setText(rowItem.dateModification);
+          }
+          if (isBackButton) {
+            holder.date.setText(rowItem.size);
+            holder.txtDesc.setText("");
+          }
+          if (getBoolean(PREFERENCE_SHOW_PERMISSIONS)) holder.perm.setText(rowItem.permissions);
         }
-        if (isBackButton) {
-          holder.date.setText(rowItem.size);
-          holder.txtDesc.setText("");
-        }
-        if (getBoolean(PREFERENCE_SHOW_PERMISSIONS)) holder.perm.setText(rowItem.permissions);
       }
+    } catch (Exception e) {
+
     }
   }
 
